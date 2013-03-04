@@ -1,0 +1,96 @@
+/*LAST EDIT: ELIAS 
+ March 4 2013
+  -- Black and White, but holds a buffer of 5 on arduino before sending back
+ */
+
+const int cols = 100;
+int rows = 48;
+int dataIn[cols+1];
+int count = 0;
+int currRow = 0;      //pointer to current row in buffer
+int rowsIn = 0;
+boolean fullR = false;
+boolean ack = false;
+const int BUFSIZE = 5;
+int buffer[BUFSIZE][cols];
+int i;
+void setup()
+{
+  Serial.begin(9600);
+}
+
+//Main loop
+void loop()
+{  
+  if (fullR)//if a full packet has been received
+  {
+    if(rowsIn>BUFSIZE-1){
+      /*Send a full row back:
+       - Send a header first
+       - Then loop through all pixels, sending rgb of each one
+       - indicate end of transmission by setting fullR to false
+       - then send request for another row
+       */
+
+      Serial.write(100);//send header 
+      Serial.flush();  
+      for(i=0; i<cols; i++)
+      {    
+        Serial.write(buffer[currRow][i]);  
+      }
+    }  
+    //transfer dataIn into buffer
+    for(i = 0; i < cols; i++)
+      buffer[currRow][i] = dataIn[i+1];
+
+    fullR = false;
+    rowsIn++;
+    currRow++;
+    currRow = currRow % BUFSIZE;
+    ack = false;
+    dataIn[0] = 0;
+    delay(200);
+
+    while(Serial.read() != 90){  
+      Serial.write(89); 
+      delay(10);
+    } 
+  }//endFullR
+}//end Main loop
+
+/*Method is triggered when there is byte on serial port */
+void serialEvent() {
+  int inByte = Serial.read();
+
+  if(dataIn[0] == 101) {
+    /*Put inByte into array
+     RGBcount - keeps track of which value (r,g, or b) is to have the value
+     - loops after 3 (0,1,2)
+     Once A pixels have been received (24 rgb vals), fullR=true. Get ready to receive back
+     */
+    dataIn[count] = inByte;   
+    count++;          
+    if (count > cols)
+    {
+      fullR = true;
+      dataIn[0] = 0;
+    }
+  }
+  else if(inByte==101){//receive header
+    dataIn[0] = inByte;
+    count=1;
+  }
+  else if(inByte == 88){
+    Serial.write(87);
+  }//end else if 
+  else if(inByte == 90){
+    ack = true;
+  }//end else if 
+}//end serialEvent
+
+
+
+
+
+
+
